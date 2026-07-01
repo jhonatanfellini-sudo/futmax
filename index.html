@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Pênaltis Realista</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #1e1e1e;
+            color: white;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 { margin-bottom: 5px; }
+        #canvas-container {
+            position: relative;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        canvas {
+            background-color: #228B22; /* Gramado */
+            border: 4px solid #fff;
+            border-radius: 8px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+        .controles {
+            margin-top: 15px;
+        }
+        .btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            margin: 5px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: 0.2s;
+        }
+        .btn:hover { background-color: #0056b3; }
+        .btn-esquerda { background-color: #e67e22; }
+        .btn-centro { background-color: #34495e; }
+        .btn-direita { background-color: #9b59b6; }
+        
+        #placar {
+            font-size: 22px;
+            font-weight: bold;
+            background: #333;
+            padding: 10px;
+            display: inline-block;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>⚽ Arena de Pênaltis ⚽</h1>
+    <p>Escolha o canto do chute. O goleiro vai tentar adivinhar em tempo real!</p>
+
+    <div id="placar">Gols: 0 | Defesas: 0</div>
+
+    <br>
+    <div id="canvas-container">
+        <canvas id="gameCanvas" width="600" height="400"></canvas>
+    </div>
+
+    <div class="controles">
+        <button class="btn btn-esquerda" onclick="fazerChute('esquerda')">Chutar na Esquerda</button>
+        <button class="btn btn-centro" onclick="fazerChute('centro')">Chutar no Meio</button>
+        <button class="btn btn-direita" onclick="fazerChute('direita')">Chutar na Direita</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Placar
+        let gols = 0;
+        let defesas = 0;
+        let jogando = false;
+
+        // Posições dos Elementos
+        const trave = { x: 150, y: 50, largura: 300, altura: 150 };
+        
+        let goleiro = { x: 300, y: 150, raio: 18, alvoX: 300, alvoY: 150 };
+        let bola = { x: 300, y: 350, raio: 12, alvoX: 300, alvoY: 350, velocidade: 0.08 };
+
+        // Coordenadas dos alvos para onde a bola/goleiro podem ir
+        const posicoesX = {
+            'esquerda': 190,
+            'centro': 300,
+            'direita': 410
+        };
+
+        function desenharCenário() {
+            // Limpar tela
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Linhas do gramado (Grande Área)
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+            ctx.lineWidth = 3;
+            ctx.strokeRect(50, 180, 500, 220); // Linha da grande área
+            
+            // Marca do Pênalti
+            ctx.beginPath();
+            ctx.arc(300, 350, 4, 0, Math.PI * 2);
+            ctx.fillStyle = "white";
+            ctx.fill();
+
+            // Desenhar a Trave (Rede)
+            ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+            ctx.fillRect(trave.x, trave.y, trave.largura, trave.altura);
+            
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 6;
+            ctx.strokeRect(trave.x, trave.y, trave.largura, trave.altura);
+
+            // Desenhar Goleiro (Círculo representando o corpo)
+            ctx.beginPath();
+            ctx.arc(goleiro.x, goleiro.y, goleiro.raio, 0, Math.PI * 2);
+            ctx.fillStyle = "#ff1a1a"; // Vermelho
+            ctx.fill();
+            ctx.strokeStyle = "#fff";
+            ctx.stroke();
+            
+            // Cabeça do goleiro
+            ctx.beginPath();
+            ctx.arc(goleiro.x, goleiro.y - 8, 8, 0, Math.PI * 2);
+            ctx.fillStyle = "#ffcc99"; 
+            ctx.fill();
+
+            // Desenhar Bola
+            ctx.beginPath();
+            ctx.arc(bola.x, bola.y, bola.raio, 0, Math.PI * 2);
+            ctx.fillStyle = "white";
+            ctx.fill();
+            ctx.strokeStyle = "black";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Detalhes gomos da bola (simples)
+            ctx.fillStyle = "black";
+            ctx.beginPath(); ctx.arc(bola.x, bola.y, 3, 0, Math.PI*2); ctx.fill();
+        }
+
+        function atualizarAnimacao() {
+            // Mover bola suavemente até o alvo usando interpolação linear (Lerp)
+            bola.x += (bola.alvoX - bola.x) * bola.velocidade;
+            bola.y += (bola.alvoY - bola.y) * bola.velocidade;
+
+            // Mover goleiro suavemente até o seu alvo
+            goleiro.x += (goleiro.alvoX - goleiro.x) * 0.1;
+            goleiro.y += (goleiro.alvoY - goleiro.y) * 0.1;
+
+            desenharCenário();
+
+            // Verificar se a bola chegou perto do destino final para parar a animação
+            if (Math.abs(bola.y - bola.alvoY) < 2 && jogando) {
+                jogando = false;
+                verificarResultado();
+            }
+
+            requestAnimationFrame(atualizarAnimacao);
+        }
+
+        function fazerChute(cantoEscolhido) {
+            if (jogando) return; // Evita clicar enquanto a animação roda
+
+            jogando = true;
+
+            // Define o destino da bola
+            bola.alvoX = posicoesX[cantoEscolhido];
+            bola.alvoY = 100; // Linha do gol
+
+            // O Goleiro escolhe um canto aleatório para pular
+            const cantos = ['esquerda', 'centro', 'direita'];
+            const cantoGoleiro = cantos[Math.floor(Math.random() * cantos.length)];
+
+            goleiro.alvoX = posicoesX[cantoGoleiro];
+            if (cantoGoleiro !== 'centro') {
+                goleiro.alvoY = 120; // Ele se joga para o lado diminuindo a altura
+            } else {
+                goleiro.alvoY = 150; // Fica no meio
+            }
+
+            // Guarda as escolhas para checar o resultado depois
+            bola.ultimoChute = cantoEscolhido;
+            goleiro.ultimoPulo = cantoGoleiro;
+        }
+
+        function verificarResultado() {
+            if (bola.ultimoChute === goleiro.ultimoPulo) {
+                defesas++;
+                alert("❌ DEFENDEU O GOLEIRO!");
+            } else {
+                gols++;
+                alert("⚽ GOOOOOOL!!");
+            }
+
+            // Atualiza o placar
+            document.getElementById('placar').innerText = `Gols: ${gols} | Defesas: ${defesas}`;
+
+            // Reseta as posições após 1 segundo
+            setTimeout(() => {
+                bola.x = 300;
+                bola.y = 350;
+                bola.alvoX = 300;
+                bola.alvoY = 350;
+
+                goleiro.x = 300;
+                goleiro.y = 150;
+                goleiro.alvoX = 300;
+                goleiro.alvoY = 150;
+            }, 1000);
+        }
+
+        // Inicia o loop do jogo
+        atualizarAnimacao();
+    </script>
+</body>
+</html>
